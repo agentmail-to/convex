@@ -150,7 +150,7 @@ describe("isTerminalStatus", () => {
     expect(isTerminalStatus(status)).toBe(true);
   });
 
-  it.each(["pending", "sending", "sent"] as const)(
+  it.each(["pending", "sent"] as const)(
     "treats %s as non-terminal",
     (status) => {
       expect(isTerminalStatus(status)).toBe(false);

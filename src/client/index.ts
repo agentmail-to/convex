@@ -6,6 +6,7 @@ import {
 import { v, type VString } from "convex/values";
 import {
   type AgentMailEvent,
+  type RunActionCtx,
   type RunMutationCtx,
   type RunQueryCtx,
   type RuntimeConfig,
@@ -110,7 +111,7 @@ export class AgentMail {
   // ---- Inboxes ---------------------------------------------------------
 
   async createInbox(
-    ctx: { runAction: any },
+    ctx: RunActionCtx,
     request: {
       username?: string;
       domain?: string;
@@ -130,7 +131,7 @@ export class AgentMail {
   }
 
   async listInboxes(
-    ctx: { runAction: any },
+    ctx: RunActionCtx,
     args: { limit?: number; pageToken?: string; ascending?: boolean } = {},
   ) {
     return await ctx.runAction(this.component.lib.listInboxes, {
@@ -141,14 +142,14 @@ export class AgentMail {
     });
   }
 
-  async getInbox(ctx: { runAction: any }, inboxId: string) {
+  async getInbox(ctx: RunActionCtx, inboxId: string) {
     return await ctx.runAction(this.component.lib.getInboxRemote, {
       config: await this.runtimeConfig(),
       inboxId,
     });
   }
 
-  async deleteInbox(ctx: { runAction: any }, inboxId: string) {
+  async deleteInbox(ctx: RunActionCtx, inboxId: string) {
     return await ctx.runAction(this.component.lib.deleteInbox, {
       config: await this.runtimeConfig(),
       inboxId,
@@ -166,7 +167,7 @@ export class AgentMail {
     inboxId: string,
     args: SendArgs,
   ): Promise<OutboundId> {
-    this.assertConfigured();
+    this.assertConfigured("send");
     const id = await ctx.runMutation(this.component.lib.enqueueSend, {
       config: await this.runtimeConfig(),
       inboxId,
@@ -182,7 +183,7 @@ export class AgentMail {
     parentMessageId: string,
     args: ReplyArgs,
   ): Promise<OutboundId> {
-    this.assertConfigured();
+    this.assertConfigured("send");
     const id = await ctx.runMutation(this.component.lib.enqueueSend, {
       config: await this.runtimeConfig(),
       inboxId,
@@ -199,7 +200,7 @@ export class AgentMail {
     parentMessageId: string,
     args: ForwardArgs,
   ): Promise<OutboundId> {
-    this.assertConfigured();
+    this.assertConfigured("send");
     const id = await ctx.runMutation(this.component.lib.enqueueSend, {
       config: await this.runtimeConfig(),
       inboxId,
@@ -225,7 +226,7 @@ export class AgentMail {
   // ---- Threads / messages (remote reads) -------------------------------
 
   async listThreads(
-    ctx: { runAction: any },
+    ctx: RunActionCtx,
     inboxId: string,
     args: { limit?: number; pageToken?: string; labels?: string[] } = {},
   ) {
@@ -239,7 +240,7 @@ export class AgentMail {
   }
 
   async getThread(
-    ctx: { runAction: any },
+    ctx: RunActionCtx,
     inboxId: string,
     threadId: string,
   ) {
@@ -251,7 +252,7 @@ export class AgentMail {
   }
 
   async getMessage(
-    ctx: { runAction: any },
+    ctx: RunActionCtx,
     inboxId: string,
     messageId: string,
   ) {
@@ -271,11 +272,7 @@ export class AgentMail {
     ctx: RunMutationCtx,
     req: Request,
   ): Promise<Response> {
-    if (!this.config.webhookSecret) {
-      throw new Error(
-        "AGENTMAIL_WEBHOOK_SECRET is not set; cannot verify webhook",
-      );
-    }
+    this.assertConfigured("webhook");
     const raw = await req.text();
     const headers = {
       "svix-id": req.headers.get("svix-id") ?? "",
@@ -317,10 +314,15 @@ export class AgentMail {
     };
   }
 
-  private assertConfigured() {
-    if (!this.config.apiKey) {
+  private assertConfigured(mode: "send" | "webhook") {
+    if (mode === "send" && !this.config.apiKey) {
       throw new Error(
         "AGENTMAIL_API_KEY is not set. Pass apiKey to the AgentMail constructor or set the env var.",
+      );
+    }
+    if (mode === "webhook" && !this.config.webhookSecret) {
+      throw new Error(
+        "AGENTMAIL_WEBHOOK_SECRET is not set. Pass webhookSecret to the AgentMail constructor or set the env var.",
       );
     }
   }

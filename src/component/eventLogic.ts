@@ -88,3 +88,15 @@ export function isTerminalStatus(status: OutboundStatus): boolean {
     status === "failed"
   );
 }
+
+/**
+ * The set of terminal statuses, kept in lockstep with `isTerminalStatus`.
+ * Used by the cleanup sweep so retention applies uniformly.
+ */
+export const TERMINAL_STATUSES = [
+  "delivered",
+  "bounced",
+  "complained",
+  "rejected",
+  "failed",
+] as const satisfies readonly OutboundStatus[];

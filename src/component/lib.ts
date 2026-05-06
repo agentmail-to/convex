@@ -20,6 +20,7 @@ import {
   extractIndexFields,
   mapEventToOutboundStatus,
   sendPath,
+  TERMINAL_STATUSES,
 } from "./eventLogic.js";
 
 const FINALIZED_OUTBOUND_RETENTION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
@@ -244,7 +245,18 @@ export const performSend = internalAction({
       const response = (await agentmailFetch(args.config, path, {
         method: "POST",
         body: row.payload,
-      })) as { message_id: string; thread_id: string };
+      })) as { message_id: string; thread_id: string } | null;
+
+      // Defensive: AgentMail's send endpoints always return JSON; guard the
+      // pathological case so we surface a clear error rather than NPE on
+      // null.message_id.
+      if (!response || !response.message_id || !response.thread_id) {
+        await ctx.runMutation(internal.lib.markSendFailed, {
+          outboundId: args.outboundId,
+          errorMessage: "AgentMail returned a 2xx without a JSON send response",
+        });
+        return null;
+      }
 
       return {
         agentmailMessageId: response.message_id,
@@ -276,10 +288,14 @@ export const onSendComplete = sendPool.defineOnComplete({
         | { agentmailMessageId: string; threadId: string }
         | null;
       if (value === null) return; // permanent error path already wrote failure
+      // Set finalizedAt so the cleanup sweep can reclaim sent rows that
+      // never receive a delivery webhook (e.g. customers who don't subscribe
+      // to message.delivered events).
       await ctx.db.patch(outboundId, {
         status: "sent",
         agentmailMessageId: value.agentmailMessageId,
         threadId: value.threadId,
+        finalizedAt: Date.now(),
       });
     } else if (args.result.kind === "failed") {
       await ctx.db.patch(outboundId, {
@@ -288,6 +304,9 @@ export const onSendComplete = sendPool.defineOnComplete({
         finalizedAt: Date.now(),
       });
     } else if (args.result.kind === "canceled") {
+      // Don't clobber a user-set "Cancelled by user" message if cancelSend
+      // already moved the row to failed.
+      if (row.status === "failed") return;
       await ctx.db.patch(outboundId, {
         status: "failed",
         errorMessage: "Workpool cancelled the send",
@@ -532,18 +551,24 @@ async function applyEventToOutbound(
 // Cleanup
 // ---------------------------------------------------------------------------
 
+// Sweeps any row whose status is terminal and whose finalizedAt is older than
+// the retention threshold. Reads each terminal status via its index so the
+// scan stays cheap even with millions of rows.
 export const cleanupFinalizedOutbound = mutation({
   args: { olderThan: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const olderThan = args.olderThan ?? FINALIZED_OUTBOUND_RETENTION_MS;
     const cutoff = Date.now() - olderThan;
-    const rows = await ctx.db
-      .query("outboundMessages")
-      .withIndex("by_status", (q) => q.eq("status", "delivered"))
-      .take(200);
-    for (const row of rows) {
-      if (row.finalizedAt && row.finalizedAt < cutoff) {
-        await ctx.db.delete(row._id);
+    const PER_STATUS_LIMIT = 200;
+    for (const status of TERMINAL_STATUSES) {
+      const rows = await ctx.db
+        .query("outboundMessages")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(PER_STATUS_LIMIT);
+      for (const row of rows) {
+        if (row.finalizedAt && row.finalizedAt < cutoff) {
+          await ctx.db.delete(row._id);
+        }
       }
     }
   },

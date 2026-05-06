@@ -1,5 +1,6 @@
 import { type Infer, v } from "convex/values";
 import {
+  type GenericActionCtx,
   type GenericDataModel,
   type GenericMutationCtx,
   type GenericQueryCtx,
@@ -7,7 +8,6 @@ import {
 
 export const vOutboundStatus = v.union(
   v.literal("pending"),
-  v.literal("sending"),
   v.literal("sent"),
   v.literal("failed"),
   v.literal("delivered"),
@@ -89,4 +89,9 @@ export type RunQueryCtx = {
 };
 export type RunMutationCtx = {
   runMutation: GenericMutationCtx<GenericDataModel>["runMutation"];
+};
+export type RunActionCtx = {
+  runAction: GenericActionCtx<GenericDataModel>["runAction"];
+  runMutation: GenericActionCtx<GenericDataModel>["runMutation"];
+  runQuery: GenericActionCtx<GenericDataModel>["runQuery"];
 };
