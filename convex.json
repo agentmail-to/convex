@@ -1,0 +1,4 @@
+{
+  "functions": "src/component/",
+  "generateCommonJSApi": false
+}

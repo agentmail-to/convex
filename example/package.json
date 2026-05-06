@@ -1,0 +1,16 @@
+{
+  "name": "agentmail-convex-example",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "convex dev"
+  },
+  "dependencies": {
+    "@agentmail/convex": "*",
+    "convex": "^1.35.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.0"
+  }
+}
