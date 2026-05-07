@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import {
   internalAction,
   internalMutation,
-  internalQuery,
   mutation,
   query,
 } from "./_generated/server.js";
@@ -227,17 +226,28 @@ const vSendResult = v.union(
   }),
 );
 
+export const markSending = internalMutation({
+  args: { outboundId: v.id("outboundMessages") },
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.outboundId);
+    if (!row) return null;
+    // cancelSend or markSendFailed already finalized this row — bail.
+    if (row.status === "failed") return null;
+    if (row.status === "pending") {
+      await ctx.db.patch(args.outboundId, { status: "sending" });
+    }
+    return row;
+  },
+});
+
 export const performSend = internalAction({
   args: { config: vRuntimeConfig, outboundId: v.id("outboundMessages") },
   returns: vSendResult,
   handler: async (ctx, args) => {
-    const row = await ctx.runQuery(internal.lib.getOutbound, {
+    const row = await ctx.runMutation(internal.lib.markSending, {
       outboundId: args.outboundId,
     });
-    if (!row || row.status === "failed") {
-      // Cancelled or already finalized.
-      return null;
-    }
+    if (!row) return null;
 
     const path = sendPath(row.inboxId, row.kind, row.parentMessageId);
 
@@ -328,11 +338,6 @@ export const markSendFailed = internalMutation({
       finalizedAt: Date.now(),
     });
   },
-});
-
-export const getOutbound = internalQuery({
-  args: { outboundId: v.id("outboundMessages") },
-  handler: async (ctx, args) => ctx.db.get(args.outboundId),
 });
 
 export const getOutboundStatus = query({
@@ -551,16 +556,19 @@ async function applyEventToOutbound(
 // Cleanup
 // ---------------------------------------------------------------------------
 
-// Sweeps any row whose status is terminal and whose finalizedAt is older than
-// the retention threshold. Reads each terminal status via its index so the
-// scan stays cheap even with millions of rows.
+// Sweeps any row whose finalizedAt is older than the retention threshold.
+// Includes "sent" alongside the terminal statuses because onSendComplete now
+// stamps finalizedAt on sent rows so they get reclaimed even if AgentMail
+// never delivers a follow-up delivery/bounce webhook.
+const SWEEPABLE_STATUSES = ["sent", ...TERMINAL_STATUSES] as const;
+
 export const cleanupFinalizedOutbound = mutation({
   args: { olderThan: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const olderThan = args.olderThan ?? FINALIZED_OUTBOUND_RETENTION_MS;
     const cutoff = Date.now() - olderThan;
     const PER_STATUS_LIMIT = 200;
-    for (const status of TERMINAL_STATUSES) {
+    for (const status of SWEEPABLE_STATUSES) {
       const rows = await ctx.db
         .query("outboundMessages")
         .withIndex("by_status", (q) => q.eq("status", status))

@@ -1,7 +1,7 @@
 import type { RuntimeConfig } from "./shared.js";
 
 const PERMANENT_STATUSES = new Set([
-  400, 401, 403, 404, 405, 410, 413, 414, 415, 422,
+  400, 401, 404, 405, 410, 413, 414, 415, 422,
 ]);
 
 export class AgentMailApiError extends Error {
