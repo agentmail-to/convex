@@ -30,7 +30,6 @@ export type ComponentApi<
       "action",
       "internal",
       {
-        config: RuntimeConfig;
         request: {
           username?: string;
           domain?: string;
@@ -45,7 +44,6 @@ export type ComponentApi<
       "action",
       "internal",
       {
-        config: RuntimeConfig;
         limit?: number;
         page_token?: string;
         ascending?: boolean;
@@ -56,14 +54,14 @@ export type ComponentApi<
     getInboxRemote: FunctionReference<
       "action",
       "internal",
-      { config: RuntimeConfig; inboxId: string },
+      { inboxId: string },
       any,
       Name
     >;
     deleteInbox: FunctionReference<
       "action",
       "internal",
-      { config: RuntimeConfig; inboxId: string },
+      { inboxId: string },
       null,
       Name
     >;
@@ -115,7 +113,6 @@ export type ComponentApi<
       "action",
       "internal",
       {
-        config: RuntimeConfig;
         inboxId: string;
         limit?: number;
         page_token?: string;
@@ -129,14 +126,14 @@ export type ComponentApi<
     getThread: FunctionReference<
       "action",
       "internal",
-      { config: RuntimeConfig; inboxId: string; threadId: string },
+      { inboxId: string; threadId: string },
       any,
       Name
     >;
     getMessage: FunctionReference<
       "action",
       "internal",
-      { config: RuntimeConfig; inboxId: string; messageId: string },
+      { inboxId: string; messageId: string },
       any,
       Name
     >;

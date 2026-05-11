@@ -42,28 +42,18 @@ export type { SendArgs, ReplyArgs, ForwardArgs } from "./payload.js";
 export { toSendPayload } from "./payload.js";
 export { verifyAgentMailWebhook, WebhookVerificationError } from "./webhook.js";
 
-const DEFAULT_BASE_URL = "https://api.agentmail.to/v0";
+// Defaults for the non-sensitive tuning params. Sensitive credentials
+// (AGENTMAIL_API_KEY, AGENTMAIL_BASE_URL, AGENTMAIL_WEBHOOK_SECRET) are
+// read directly from process.env on the deployment that hosts the
+// component, so they never flow through mutation args and never appear
+// in Convex function logs.
+const DEFAULT_RETRY_ATTEMPTS = 5;
+const DEFAULT_INITIAL_BACKOFF_MS = 30_000;
 
-type Config = RuntimeConfig & {
-  webhookSecret: string;
-};
-
-function getDefaultConfig(): Config {
-  return {
-    apiKey: process.env.AGENTMAIL_API_KEY ?? "",
-    baseUrl: process.env.AGENTMAIL_BASE_URL ?? DEFAULT_BASE_URL,
-    webhookSecret: process.env.AGENTMAIL_WEBHOOK_SECRET ?? "",
-    initialBackoffMs: 30_000,
-    retryAttempts: 5,
-  };
-}
+type Config = RuntimeConfig & { webhookSecret: string };
 
 export type AgentMailOptions = {
-  /** API key. Falls back to AGENTMAIL_API_KEY. */
-  apiKey?: string;
-  /** Override base URL (e.g. https://api.agentmail.eu/v0). Falls back to AGENTMAIL_BASE_URL. */
-  baseUrl?: string;
-  /** Svix webhook secret. Falls back to AGENTMAIL_WEBHOOK_SECRET. */
+  /** Override `AGENTMAIL_WEBHOOK_SECRET` for the webhook handler. */
   webhookSecret?: string;
   initialBackoffMs?: number;
   retryAttempts?: number;
@@ -96,14 +86,11 @@ export class AgentMail {
     public component: ComponentApi,
     options?: AgentMailOptions,
   ) {
-    const defaults = getDefaultConfig();
     this.config = {
-      apiKey: options?.apiKey ?? defaults.apiKey,
-      baseUrl: options?.baseUrl ?? defaults.baseUrl,
-      webhookSecret: options?.webhookSecret ?? defaults.webhookSecret,
-      initialBackoffMs:
-        options?.initialBackoffMs ?? defaults.initialBackoffMs,
-      retryAttempts: options?.retryAttempts ?? defaults.retryAttempts,
+      webhookSecret:
+        options?.webhookSecret ?? process.env.AGENTMAIL_WEBHOOK_SECRET ?? "",
+      initialBackoffMs: options?.initialBackoffMs ?? DEFAULT_INITIAL_BACKOFF_MS,
+      retryAttempts: options?.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS,
     };
     this.onEvent = options?.onEvent ?? undefined;
     this.onMessageReceived = options?.onMessageReceived ?? undefined;
@@ -121,7 +108,6 @@ export class AgentMail {
     } = {},
   ) {
     return await ctx.runAction(this.component.lib.createInbox, {
-      config: await this.runtimeConfig(),
       request: {
         username: request.username,
         domain: request.domain,
@@ -136,7 +122,6 @@ export class AgentMail {
     args: { limit?: number; pageToken?: string; ascending?: boolean } = {},
   ) {
     return await ctx.runAction(this.component.lib.listInboxes, {
-      config: await this.runtimeConfig(),
       limit: args.limit,
       page_token: args.pageToken,
       ascending: args.ascending,
@@ -145,14 +130,12 @@ export class AgentMail {
 
   async getInbox(ctx: RunActionCtx, inboxId: string) {
     return await ctx.runAction(this.component.lib.getInboxRemote, {
-      config: await this.runtimeConfig(),
       inboxId,
     });
   }
 
   async deleteInbox(ctx: RunActionCtx, inboxId: string) {
     return await ctx.runAction(this.component.lib.deleteInbox, {
-      config: await this.runtimeConfig(),
       inboxId,
     });
   }
@@ -232,7 +215,6 @@ export class AgentMail {
     args: { limit?: number; pageToken?: string; labels?: string[] } = {},
   ) {
     return await ctx.runAction(this.component.lib.listThreads, {
-      config: await this.runtimeConfig(),
       inboxId,
       limit: args.limit,
       page_token: args.pageToken,
@@ -246,7 +228,6 @@ export class AgentMail {
     threadId: string,
   ) {
     return await ctx.runAction(this.component.lib.getThread, {
-      config: await this.runtimeConfig(),
       inboxId,
       threadId,
     });
@@ -258,7 +239,6 @@ export class AgentMail {
     messageId: string,
   ) {
     return await ctx.runAction(this.component.lib.getMessage, {
-      config: await this.runtimeConfig(),
       inboxId,
       messageId,
     });
@@ -302,8 +282,6 @@ export class AgentMail {
 
   private async runtimeConfig(): Promise<RuntimeConfig> {
     return {
-      apiKey: this.config.apiKey,
-      baseUrl: this.config.baseUrl,
       retryAttempts: this.config.retryAttempts,
       initialBackoffMs: this.config.initialBackoffMs,
       onEvent: this.onEvent
@@ -316,9 +294,10 @@ export class AgentMail {
   }
 
   private assertConfigured(mode: "send" | "webhook") {
-    if (mode === "send" && !this.config.apiKey) {
+    if (mode === "send" && !process.env.AGENTMAIL_API_KEY) {
       throw new Error(
-        "AGENTMAIL_API_KEY is not set. Pass apiKey to the AgentMail constructor or set the env var.",
+        "AGENTMAIL_API_KEY is not set on the Convex deployment. Run " +
+          "`npx convex env set AGENTMAIL_API_KEY <key>`.",
       );
     }
     if (mode === "webhook" && !this.config.webhookSecret) {

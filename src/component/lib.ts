@@ -42,7 +42,6 @@ const callbackPool = new Workpool(components.callbackPool, {
 
 export const createInbox = internalAction({
   args: {
-    config: vRuntimeConfig,
     request: v.object({
       username: v.optional(v.string()),
       domain: v.optional(v.string()),
@@ -51,7 +50,7 @@ export const createInbox = internalAction({
     }),
   },
   handler: async (ctx, args) => {
-    const inbox = (await agentmailFetch(args.config, "/inboxes", {
+    const inbox = (await agentmailFetch("/inboxes", {
       method: "POST",
       body: args.request,
     })) as InboxResponse;
@@ -62,13 +61,12 @@ export const createInbox = internalAction({
 
 export const listInboxes = internalAction({
   args: {
-    config: vRuntimeConfig,
     limit: v.optional(v.number()),
     page_token: v.optional(v.string()),
     ascending: v.optional(v.boolean()),
   },
   handler: async (_ctx, args) => {
-    return await agentmailFetch(args.config, "/inboxes", {
+    return await agentmailFetch("/inboxes", {
       method: "GET",
       query: {
         limit: args.limit,
@@ -80,22 +78,20 @@ export const listInboxes = internalAction({
 });
 
 export const getInboxRemote = internalAction({
-  args: { config: vRuntimeConfig, inboxId: v.string() },
+  args: { inboxId: v.string() },
   handler: async (ctx, args) => {
-    const inbox = (await agentmailFetch(
-      args.config,
-      `/inboxes/${args.inboxId}`,
-      { method: "GET" },
-    )) as InboxResponse;
+    const inbox = (await agentmailFetch(`/inboxes/${args.inboxId}`, {
+      method: "GET",
+    })) as InboxResponse;
     await ctx.runMutation(internal.lib.upsertInbox, { inbox });
     return inbox;
   },
 });
 
 export const deleteInbox = internalAction({
-  args: { config: vRuntimeConfig, inboxId: v.string() },
+  args: { inboxId: v.string() },
   handler: async (ctx, args) => {
-    await agentmailFetch(args.config, `/inboxes/${args.inboxId}`, {
+    await agentmailFetch(`/inboxes/${args.inboxId}`, {
       method: "DELETE",
     });
     await ctx.runMutation(internal.lib.removeInbox, { inboxId: args.inboxId });
@@ -194,7 +190,7 @@ export const enqueueSend = mutation({
     await sendPool.enqueueAction(
       ctx,
       internal.lib.performSend,
-      { config: args.config, outboundId: id },
+      { outboundId: id },
       {
         retry: {
           maxAttempts: args.config.retryAttempts,
@@ -245,7 +241,7 @@ export const getOutboundForSend = internalQuery({
 });
 
 export const performSend = internalAction({
-  args: { config: vRuntimeConfig, outboundId: v.id("outboundMessages") },
+  args: { outboundId: v.id("outboundMessages") },
   returns: vSendResult,
   handler: async (ctx, args) => {
     const row = await ctx.runQuery(internal.lib.getOutboundForSend, {
@@ -256,7 +252,7 @@ export const performSend = internalAction({
     const path = sendPath(row.inboxId, row.kind, row.parentMessageId);
 
     try {
-      const response = (await agentmailFetch(args.config, path, {
+      const response = (await agentmailFetch(path, {
         method: "POST",
         body: row.payload,
       })) as { message_id: string; thread_id: string } | null;
@@ -368,7 +364,6 @@ export const getOutboundStatus = query({
 
 export const listThreads = internalAction({
   args: {
-    config: vRuntimeConfig,
     inboxId: v.string(),
     limit: v.optional(v.number()),
     page_token: v.optional(v.string()),
@@ -377,28 +372,23 @@ export const listThreads = internalAction({
     after: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
-    return await agentmailFetch(
-      args.config,
-      `/inboxes/${args.inboxId}/threads`,
-      {
-        method: "GET",
-        query: {
-          limit: args.limit,
-          page_token: args.page_token,
-          before: args.before,
-          after: args.after,
-          labels: args.labels?.join(","),
-        },
+    return await agentmailFetch(`/inboxes/${args.inboxId}/threads`, {
+      method: "GET",
+      query: {
+        limit: args.limit,
+        page_token: args.page_token,
+        before: args.before,
+        after: args.after,
+        labels: args.labels?.join(","),
       },
-    );
+    });
   },
 });
 
 export const getThread = internalAction({
-  args: { config: vRuntimeConfig, inboxId: v.string(), threadId: v.string() },
+  args: { inboxId: v.string(), threadId: v.string() },
   handler: async (_ctx, args) => {
     return await agentmailFetch(
-      args.config,
       `/inboxes/${args.inboxId}/threads/${args.threadId}`,
       { method: "GET" },
     );
@@ -406,10 +396,9 @@ export const getThread = internalAction({
 });
 
 export const getMessage = internalAction({
-  args: { config: vRuntimeConfig, inboxId: v.string(), messageId: v.string() },
+  args: { inboxId: v.string(), messageId: v.string() },
   handler: async (_ctx, args) => {
     return await agentmailFetch(
-      args.config,
       `/inboxes/${args.inboxId}/messages/${args.messageId}`,
       { method: "GET" },
     );

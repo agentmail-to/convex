@@ -33,9 +33,10 @@ describe("validators", () => {
 
   it("vRuntimeConfig describes component config", () => {
     expect(vRuntimeConfig.kind).toBe("object");
-    // Spot check a couple of expected fields exist on the validator.
-    expect(vRuntimeConfig.fields).toHaveProperty("apiKey");
-    expect(vRuntimeConfig.fields).toHaveProperty("baseUrl");
+    // Tuning fields are still in args; credentials are not (read from env).
     expect(vRuntimeConfig.fields).toHaveProperty("retryAttempts");
+    expect(vRuntimeConfig.fields).toHaveProperty("initialBackoffMs");
+    expect(vRuntimeConfig.fields).not.toHaveProperty("apiKey");
+    expect(vRuntimeConfig.fields).not.toHaveProperty("baseUrl");
   });
 });

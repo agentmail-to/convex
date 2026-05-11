@@ -1,8 +1,8 @@
-import type { RuntimeConfig } from "./shared.js";
-
 const PERMANENT_STATUSES = new Set([
   400, 401, 404, 405, 410, 413, 414, 415, 422,
 ]);
+
+const DEFAULT_BASE_URL = "https://api.agentmail.to/v0";
 
 // Cap stored error bodies so a CDN's HTML 502 page can't balloon a
 // Convex document.
@@ -37,16 +37,21 @@ type FetchOptions = {
 };
 
 export async function agentmailFetch(
-  config: RuntimeConfig,
   path: string,
   opts: FetchOptions,
 ): Promise<unknown> {
-  if (!config.apiKey) {
+  const apiKey = process.env.AGENTMAIL_API_KEY;
+  if (!apiKey) {
     throw new Error(
-      "AGENTMAIL_API_KEY is not set; pass apiKey to AgentMail() or set the env var.",
+      "AGENTMAIL_API_KEY is not set on this Convex deployment. Run " +
+        "`npx convex env set AGENTMAIL_API_KEY <key>`.",
     );
   }
-  const url = new URL(config.baseUrl.replace(/\/$/, "") + path);
+  const baseUrl = (process.env.AGENTMAIL_BASE_URL ?? DEFAULT_BASE_URL).replace(
+    /\/$/,
+    "",
+  );
+  const url = new URL(baseUrl + path);
   if (opts.query) {
     for (const [k, v] of Object.entries(opts.query)) {
       if (v === undefined || v === null) continue;
@@ -55,7 +60,7 @@ export async function agentmailFetch(
   }
 
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${config.apiKey}`,
+    Authorization: `Bearer ${apiKey}`,
   };
   let body: string | undefined;
   if (opts.body !== undefined) {

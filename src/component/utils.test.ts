@@ -2,16 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AgentMailApiError,
   agentmailFetch,
+  parseTimestamp,
   stripUndefined,
 } from "./utils.js";
-import type { RuntimeConfig } from "./shared.js";
-
-const baseConfig: RuntimeConfig = {
-  apiKey: "test-key",
-  baseUrl: "https://api.agentmail.to/v0",
-  retryAttempts: 3,
-  initialBackoffMs: 100,
-};
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -72,33 +65,58 @@ describe("AgentMailApiError", () => {
   });
 });
 
+describe("parseTimestamp", () => {
+  it("returns the parsed ms for valid ISO timestamps", () => {
+    expect(parseTimestamp("2026-04-30T00:00:00.000Z")).toBe(
+      Date.parse("2026-04-30T00:00:00.000Z"),
+    );
+  });
+
+  it("falls back to Date.now() on malformed input", () => {
+    const before = Date.now();
+    const got = parseTimestamp("not a date");
+    const after = Date.now();
+    expect(got).toBeGreaterThanOrEqual(before);
+    expect(got).toBeLessThanOrEqual(after);
+  });
+});
+
 describe("agentmailFetch", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
   let originalFetch: typeof globalThis.fetch;
+  let originalApiKey: string | undefined;
+  let originalBaseUrl: string | undefined;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
     fetchSpy = vi.fn();
     // @ts-expect-error -- replacing global for tests
     globalThis.fetch = fetchSpy;
+    originalApiKey = process.env.AGENTMAIL_API_KEY;
+    originalBaseUrl = process.env.AGENTMAIL_BASE_URL;
+    process.env.AGENTMAIL_API_KEY = "test-key";
+    delete process.env.AGENTMAIL_BASE_URL;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.AGENTMAIL_API_KEY;
+    else process.env.AGENTMAIL_API_KEY = originalApiKey;
+    if (originalBaseUrl === undefined) delete process.env.AGENTMAIL_BASE_URL;
+    else process.env.AGENTMAIL_BASE_URL = originalBaseUrl;
   });
 
   it("throws when api key is missing", async () => {
+    delete process.env.AGENTMAIL_API_KEY;
     await expect(
-      agentmailFetch({ ...baseConfig, apiKey: "" }, "/inboxes", {
-        method: "GET",
-      }),
+      agentmailFetch("/inboxes", { method: "GET" }),
     ).rejects.toThrow(/AGENTMAIL_API_KEY is not set/);
   });
 
   it("sends Bearer auth and JSON content-type for body requests", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ message_id: "m1", thread_id: "t1" }));
 
-    const result = await agentmailFetch(baseConfig, "/inboxes/inb_1/messages/send", {
+    const result = await agentmailFetch("/inboxes/inb_1/messages/send", {
       method: "POST",
       body: { to: "x@example.com", subject: "hi", text: "hello" },
     });
@@ -121,7 +139,7 @@ describe("agentmailFetch", () => {
 
   it("strips undefined fields from request body", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({}));
-    await agentmailFetch(baseConfig, "/x", {
+    await agentmailFetch("/x", {
       method: "POST",
       body: { a: 1, b: undefined, c: { d: undefined, e: "y" } },
     });
@@ -131,7 +149,7 @@ describe("agentmailFetch", () => {
 
   it("does not send Content-Type or body on GET", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ count: 0, inboxes: [] }));
-    await agentmailFetch(baseConfig, "/inboxes", { method: "GET" });
+    await agentmailFetch("/inboxes", { method: "GET" });
     const [, init] = fetchSpy.mock.calls[0];
     expect(init.body).toBeUndefined();
     expect(init.headers["Content-Type"]).toBeUndefined();
@@ -140,7 +158,7 @@ describe("agentmailFetch", () => {
 
   it("appends query parameters and skips undefined/null values", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({ count: 0, threads: [] }));
-    await agentmailFetch(baseConfig, "/inboxes/inb/threads", {
+    await agentmailFetch("/inboxes/inb/threads", {
       method: "GET",
       query: {
         limit: 50,
@@ -155,22 +173,17 @@ describe("agentmailFetch", () => {
     );
   });
 
-  it("trims trailing slash on baseUrl", async () => {
+  it("trims trailing slash on AGENTMAIL_BASE_URL", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({}));
-    await agentmailFetch(
-      { ...baseConfig, baseUrl: "https://api.agentmail.to/v0/" },
-      "/inboxes",
-      { method: "GET" },
-    );
+    process.env.AGENTMAIL_BASE_URL = "https://api.agentmail.to/v0/";
+    await agentmailFetch("/inboxes", { method: "GET" });
     const [url] = fetchSpy.mock.calls[0];
     expect(String(url)).toBe("https://api.agentmail.to/v0/inboxes");
   });
 
   it("returns null on 204 No Content", async () => {
     fetchSpy.mockResolvedValue(new Response(null, { status: 204 }));
-    const result = await agentmailFetch(baseConfig, "/inboxes/inb", {
-      method: "DELETE",
-    });
+    const result = await agentmailFetch("/inboxes/inb", { method: "DELETE" });
     expect(result).toBeNull();
   });
 
@@ -181,7 +194,7 @@ describe("agentmailFetch", () => {
         headers: { "content-type": "text/plain" },
       }),
     );
-    const result = await agentmailFetch(baseConfig, "/x", { method: "GET" });
+    const result = await agentmailFetch("/x", { method: "GET" });
     expect(result).toBeNull();
   });
 
@@ -190,7 +203,7 @@ describe("agentmailFetch", () => {
       new Response("validation failed", { status: 422 }),
     );
     await expect(
-      agentmailFetch(baseConfig, "/inboxes", { method: "POST", body: {} }),
+      agentmailFetch("/inboxes", { method: "POST", body: {} }),
     ).rejects.toMatchObject({
       name: "AgentMailApiError",
       status: 422,
@@ -204,7 +217,7 @@ describe("agentmailFetch", () => {
       new Response("upstream timeout", { status: 503 }),
     );
     await expect(
-      agentmailFetch(baseConfig, "/inboxes", { method: "GET" }),
+      agentmailFetch("/inboxes", { method: "GET" }),
     ).rejects.toMatchObject({
       name: "AgentMailApiError",
       status: 503,
@@ -215,7 +228,7 @@ describe("agentmailFetch", () => {
   it("treats 401 as permanent (bad credentials)", async () => {
     fetchSpy.mockResolvedValue(new Response("unauthorized", { status: 401 }));
     await expect(
-      agentmailFetch(baseConfig, "/inboxes", { method: "GET" }),
+      agentmailFetch("/inboxes", { method: "GET" }),
     ).rejects.toMatchObject({ status: 401, permanent: true });
   });
 
@@ -224,18 +237,31 @@ describe("agentmailFetch", () => {
       new Response("rate limited", { status: 429 }),
     );
     await expect(
-      agentmailFetch(baseConfig, "/inboxes", { method: "GET" }),
+      agentmailFetch("/inboxes", { method: "GET" }),
     ).rejects.toMatchObject({ status: 429, permanent: false });
   });
 
-  it("uses baseUrl override (e.g. EU region)", async () => {
+  it("uses AGENTMAIL_BASE_URL override (e.g. EU region)", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({}));
-    await agentmailFetch(
-      { ...baseConfig, baseUrl: "https://api.agentmail.eu/v0" },
-      "/inboxes",
-      { method: "GET" },
-    );
+    process.env.AGENTMAIL_BASE_URL = "https://api.agentmail.eu/v0";
+    await agentmailFetch("/inboxes", { method: "GET" });
     const [url] = fetchSpy.mock.calls[0];
     expect(String(url)).toContain("https://api.agentmail.eu/v0/inboxes");
+  });
+
+  it("truncates oversized error bodies to ~4kB", async () => {
+    const huge = "x".repeat(8000);
+    fetchSpy.mockResolvedValue(
+      new Response(huge, { status: 502 }),
+    );
+    try {
+      await agentmailFetch("/x", { method: "GET" });
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AgentMailApiError);
+      const apiErr = err as AgentMailApiError;
+      expect(apiErr.body.length).toBeLessThanOrEqual(4096 + 20);
+      expect(apiErr.body).toMatch(/\.\.\. \[truncated\]$/);
+    }
   });
 });

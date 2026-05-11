@@ -23,8 +23,6 @@ import workpoolTest from "@convex-dev/workpool/test";
 const modules = import.meta.glob("./**/*.ts");
 
 const config = {
-  apiKey: "test-api-key",
-  baseUrl: "https://api.agentmail.to/v0",
   retryAttempts: 2,
   initialBackoffMs: 50,
 };

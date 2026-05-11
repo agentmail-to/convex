@@ -17,10 +17,8 @@
 // the component uses, so success here means the component's API calls will work.
 
 import { agentmailFetch, AgentMailApiError } from "../src/component/utils.js";
-import type { RuntimeConfig } from "../src/component/shared.js";
 
 const apiKey = process.env.AGENTMAIL_API_KEY;
-const baseUrl = process.env.AGENTMAIL_BASE_URL ?? "https://api.agentmail.to/v0";
 const sendTo = process.env.AGENTMAIL_TEST_TO;
 const wantSend = process.argv.includes("--send");
 
@@ -28,13 +26,6 @@ if (!apiKey) {
   console.error("AGENTMAIL_API_KEY is required");
   process.exit(2);
 }
-
-const config: RuntimeConfig = {
-  apiKey,
-  baseUrl,
-  retryAttempts: 1,
-  initialBackoffMs: 0,
-};
 
 function step(name: string) {
   return (msg = "ok") => console.log(`✓ ${name}: ${msg}`);
@@ -53,7 +44,7 @@ async function main() {
   let listOk = step("list inboxes");
   let inboxesResp: { count: number; inboxes: { inbox_id: string; email: string }[] };
   try {
-    inboxesResp = (await agentmailFetch(config, "/inboxes", {
+    inboxesResp = (await agentmailFetch("/inboxes", {
       method: "GET",
       query: { limit: 5 },
     })) as typeof inboxesResp;
@@ -74,7 +65,7 @@ async function main() {
 
   // 2. create a temporary inbox
   const createOk = step("create inbox");
-  const inbox = (await agentmailFetch(config, "/inboxes", {
+  const inbox = (await agentmailFetch("/inboxes", {
     method: "POST",
     body: { display_name: "Convex Component Smoke" },
   })) as { inbox_id: string; email: string };
@@ -108,7 +99,7 @@ async function main() {
   } finally {
     // 5. cleanup
     const delOk = step("delete inbox");
-    await agentmailFetch(config, `/inboxes/${inbox.inbox_id}`, {
+    await agentmailFetch(`/inboxes/${inbox.inbox_id}`, {
       method: "DELETE",
     });
     delOk();
