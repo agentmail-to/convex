@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import {
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
 } from "./_generated/server.js";
@@ -207,7 +208,7 @@ export const cancelSend = mutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.outboundId);
     if (!row) throw new Error("Outbound message not found");
-    if (row.status !== "pending" && row.status !== "sending") {
+    if (row.status !== "pending") {
       throw new Error(`Cannot cancel: status is ${row.status}`);
     }
     await ctx.db.patch(args.outboundId, {
@@ -226,16 +227,13 @@ const vSendResult = v.union(
   }),
 );
 
-export const markSending = internalMutation({
+export const getOutboundForSend = internalQuery({
   args: { outboundId: v.id("outboundMessages") },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.outboundId);
     if (!row) return null;
     // cancelSend or markSendFailed already finalized this row — bail.
     if (row.status === "failed") return null;
-    if (row.status === "pending") {
-      await ctx.db.patch(args.outboundId, { status: "sending" });
-    }
     return row;
   },
 });
@@ -244,7 +242,7 @@ export const performSend = internalAction({
   args: { config: vRuntimeConfig, outboundId: v.id("outboundMessages") },
   returns: vSendResult,
   handler: async (ctx, args) => {
-    const row = await ctx.runMutation(internal.lib.markSending, {
+    const row = await ctx.runQuery(internal.lib.getOutboundForSend, {
       outboundId: args.outboundId,
     });
     if (!row) return null;

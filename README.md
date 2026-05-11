@@ -4,7 +4,7 @@ A [Convex](https://convex.dev) component for [AgentMail](https://agentmail.to). 
 
 ## What you get
 
-- **Durable sending** — `sendMessage`, `replyToMessage`, `forwardMessage` enqueue from a mutation and a scheduled action talks to AgentMail. Status lifecycle (`pending → sending → sent → delivered/bounced/...`) is reactive.
+- **Durable sending** — `sendMessage`, `replyToMessage`, `forwardMessage` enqueue from a mutation and a scheduled action talks to AgentMail. Status lifecycle (`pending → sent → delivered/bounced/...`) is reactive.
 - **Inbound mail in your DB** — every `message.received` webhook is verified (Svix), persisted to `inboundMessages`, and your `onMessageReceived` mutation fires.
 - **Reactive queries** — subscribe to `listInboundMessages` from your frontend and watch new mail land without polling.
 - **Idempotent webhook handling** — events are deduped by `event_id`.
