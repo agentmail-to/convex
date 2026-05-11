@@ -15,9 +15,10 @@ import {
   type AgentMailEvent,
 } from "./shared.js";
 import type { FunctionHandle } from "convex/server";
-import { agentmailFetch, AgentMailApiError } from "./utils.js";
+import { agentmailFetch, AgentMailApiError, parseTimestamp } from "./utils.js";
 import {
   extractIndexFields,
+  isTerminalStatus,
   mapEventToOutboundStatus,
   sendPath,
   TERMINAL_STATUSES,
@@ -126,8 +127,8 @@ export const upsertInbox = internalMutation({
       email: inbox.email,
       displayName: inbox.display_name,
       clientId: inbox.client_id,
-      createdAt: Date.parse(inbox.created_at),
-      updatedAt: Date.parse(inbox.updated_at),
+      createdAt: parseTimestamp(inbox.created_at),
+      updatedAt: parseTimestamp(inbox.updated_at),
     };
     if (existing) {
       await ctx.db.replace(existing._id, doc);
@@ -178,6 +179,11 @@ export const enqueueSend = mutation({
     payload: vSendPayload,
   },
   handler: async (ctx, args) => {
+    // Validate at the mutation boundary so a bad input fails fast instead
+    // of throwing inside the workpool action and burning the retry budget.
+    if (args.kind !== "send" && !args.parentMessageId) {
+      throw new Error(`parentMessageId required for kind=${args.kind}`);
+    }
     const id = await ctx.db.insert("outboundMessages", {
       inboxId: args.inboxId,
       kind: args.kind,
@@ -296,6 +302,10 @@ export const onSendComplete = sendPool.defineOnComplete({
         | { agentmailMessageId: string; threadId: string }
         | null;
       if (value === null) return; // permanent error path already wrote failure
+      // If cancelSend marked the row failed while the HTTP POST was in
+      // flight, don't clobber that with "sent". Same guard the canceled
+      // branch below uses.
+      if (row.status === "failed") return;
       // Set finalizedAt so the cleanup sweep can reclaim sent rows that
       // never receive a delivery webhook (e.g. customers who don't subscribe
       // to message.delivered events).
@@ -471,7 +481,7 @@ export const handleEvent = mutation({
         extractedHtml: m.extracted_html,
         inReplyTo: m.in_reply_to,
         references: m.references,
-        timestamp: Date.parse(m.timestamp),
+        timestamp: parseTimestamp(m.timestamp),
         raw: m,
       });
     }
@@ -537,13 +547,15 @@ async function applyEventToOutbound(
     .unique();
   if (!outbound) return;
 
+  // Don't transition out of a terminal state. Protects against:
+  //  - cancelSend → late message.sent webhook would re-animate the row
+  //  - duplicate / out-of-order delivery-then-bounce webhooks
+  if (isTerminalStatus(outbound.status)) return;
+
   const next = mapEventToOutboundStatus(event.event_type);
   if (!next) return;
 
-  const finalizedAt =
-    next === "delivered" || next === "bounced" || next === "rejected"
-      ? Date.now()
-      : undefined;
+  const finalizedAt = isTerminalStatus(next) ? Date.now() : undefined;
   await ctx.db.patch(outbound._id, {
     status: next,
     ...(finalizedAt ? { finalizedAt } : {}),

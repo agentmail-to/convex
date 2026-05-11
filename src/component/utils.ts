@@ -4,6 +4,21 @@ const PERMANENT_STATUSES = new Set([
   400, 401, 404, 405, 410, 413, 414, 415, 422,
 ]);
 
+// Cap stored error bodies so a CDN's HTML 502 page can't balloon a
+// Convex document.
+const ERROR_BODY_LIMIT = 4096;
+
+/**
+ * Parse an ISO timestamp into ms-since-epoch. Returns `Date.now()` on
+ * malformed input — `Date.parse` returns `NaN` for bad strings, and `NaN`
+ * passes `v.number()` validation, so unguarded calls would silently store
+ * `NaN` in the database.
+ */
+export function parseTimestamp(input: string): number {
+  const parsed = Date.parse(input);
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
 export class AgentMailApiError extends Error {
   constructor(
     public status: number,
@@ -56,8 +71,12 @@ export async function agentmailFetch(
 
   if (!response.ok) {
     const text = await response.text();
+    const body =
+      text.length > ERROR_BODY_LIMIT
+        ? text.slice(0, ERROR_BODY_LIMIT) + "... [truncated]"
+        : text;
     const permanent = PERMANENT_STATUSES.has(response.status);
-    throw new AgentMailApiError(response.status, text, permanent);
+    throw new AgentMailApiError(response.status, body, permanent);
   }
 
   if (response.status === 204) return null;
