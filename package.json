@@ -32,11 +32,19 @@
     "test:codegen": "vitest run src/**/*.codegen.test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "smoke:send": "tsx scripts/smoke.ts --send",
+    "prepublishOnly": "npm whoami",
     "release": "npm version patch && npm publish && git push --follow-tags"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist",
-    "src/test.ts"
+    "src/test.ts",
+    "src/component/**/*.ts",
+    "src/component/**/*.js",
+    "!src/**/*.test.ts",
+    "!src/**/*.codegen.test.ts"
   ],
   "exports": {
     "./package.json": "./package.json",
