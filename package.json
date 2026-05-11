@@ -22,7 +22,7 @@
     "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'npm run build:codegen' --initial",
     "predev": "convex init && npm run build:codegen",
     "clean": "rm -rf dist *.tsbuildinfo",
-    "build": "tsc --project ./tsconfig.build.json",
+    "build": "tsc --project ./tsconfig.build.json && node ./scripts/copy-generated-dts.mjs",
     "build:codegen": "npx convex codegen --component-dir ./src/component && npm run build",
     "build:clean": "rm -rf dist *.tsbuildinfo && npm run build:codegen",
     "typecheck": "tsc --noEmit && tsc -p example/convex",
@@ -36,7 +36,7 @@
   },
   "files": [
     "dist",
-    "src"
+    "src/test.ts"
   ],
   "exports": {
     "./package.json": "./package.json",

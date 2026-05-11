@@ -19,10 +19,11 @@ import {
 } from "./payload.js";
 import { verifyAgentMailWebhook, WebhookVerificationError } from "./webhook.js";
 import type { ComponentApi } from "../component/_generated/component.js";
+import type { Id } from "../component/_generated/dataModel.js";
 
 export type AgentMailComponent = ComponentApi;
 
-export type OutboundId = string & { __isOutboundId: true };
+export type OutboundId = Id<"outboundMessages">;
 export const vOutboundId = v.string() as VString<OutboundId>;
 
 export {

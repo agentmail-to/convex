@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { TestConvex } from "convex-test";
 import schema from "./component/schema.js";
 
