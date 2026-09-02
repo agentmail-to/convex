@@ -1,9 +1,17 @@
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
-import { action, internalMutation, mutation, query } from "./_generated/server";
+import {
+  action,
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server";
 import { AgentMail, type OutboundId } from "@agentmail/convex";
 
-const agentmail = new AgentMail(components.agentmail, {
+// Annotated: `internal` is derived from this module's exports, whose types
+// depend on `agentmail`, so inference alone would be circular.
+const agentmail: AgentMail = new AgentMail(components.agentmail, {
   onMessageReceived: internal.example.onMessageReceived,
 });
 
@@ -71,7 +79,7 @@ export const onMessageReceived = internalMutation({
   },
 });
 
-export const draftAutoReply = action({
+export const draftAutoReply = internalAction({
   args: {
     inboxId: v.string(),
     messageId: v.string(),

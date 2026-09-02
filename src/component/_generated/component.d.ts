@@ -65,10 +65,10 @@ export type ComponentApi<
       null,
       Name
     >;
-    listCachedInboxes: FunctionReference<"query", "public", {}, any, Name>;
+    listCachedInboxes: FunctionReference<"query", "internal", {}, any, Name>;
     getCachedInbox: FunctionReference<
       "query",
-      "public",
+      "internal",
       { inboxId: string },
       any,
       Name
@@ -77,7 +77,7 @@ export type ComponentApi<
     // ---- Sending lifecycle ---------------------------------------------
     enqueueSend: FunctionReference<
       "mutation",
-      "public",
+      "internal",
       {
         config: RuntimeConfig;
         inboxId: string;
@@ -90,14 +90,14 @@ export type ComponentApi<
     >;
     cancelSend: FunctionReference<
       "mutation",
-      "public",
+      "internal",
       { outboundId: GenericId<"outboundMessages"> },
       null,
       Name
     >;
     getOutboundStatus: FunctionReference<
       "query",
-      "public",
+      "internal",
       { outboundId: GenericId<"outboundMessages"> },
       {
         status: OutboundStatus;
@@ -139,7 +139,7 @@ export type ComponentApi<
     >;
     listInboundMessages: FunctionReference<
       "query",
-      "public",
+      "internal",
       { inboxId?: string; threadId?: string },
       Array<any>,
       Name
@@ -148,7 +148,7 @@ export type ComponentApi<
     // ---- Webhook ingestion ---------------------------------------------
     handleEvent: FunctionReference<
       "mutation",
-      "public",
+      "internal",
       { config: RuntimeConfig; event: AgentMailEvent },
       null,
       Name
@@ -157,7 +157,7 @@ export type ComponentApi<
     // ---- Maintenance ---------------------------------------------------
     cleanupFinalizedOutbound: FunctionReference<
       "mutation",
-      "public",
+      "internal",
       { olderThan?: number },
       null,
       Name

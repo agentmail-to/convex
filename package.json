@@ -29,10 +29,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest --clearScreen false",
-    "test:codegen": "vitest run src/**/*.codegen.test.ts",
+    "test:codegen": "vitest run src/component/lib.codegen.test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "smoke:send": "tsx scripts/smoke.ts --send",
-    "prepublishOnly": "npm whoami",
+    "preversion": "npm run build && npm test",
+    "prepublishOnly": "npm whoami && npm run build && npm test",
     "release": "npm version patch && npm publish && git push --follow-tags"
   },
   "publishConfig": {

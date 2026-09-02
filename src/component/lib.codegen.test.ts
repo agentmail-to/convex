@@ -1,7 +1,6 @@
-// Integration tests for the component using convex-test.
-// These require codegen to have been run (e.g. via `npx convex dev` once).
-// They are excluded from the default vitest pattern; run with:
-//   npm run test:codegen
+// Integration tests for the component using convex-test. They run under
+// `npm test` (alone: `npm run test:codegen`) and need src/component/_generated
+// to be present.
 //
 // What's covered:
 //   - enqueueSend inserts an outboundMessages row in "pending" and queues workpool
@@ -11,7 +10,7 @@
 //   - handleEvent dedupes on event_id (idempotent)
 //   - handleEvent persists message.received to inboundMessages
 //   - handleEvent updates matched outbound rows on delivered/bounced
-//   - cleanupFinalizedOutbound deletes only delivered+old rows
+//   - cleanupFinalizedOutbound sweeps only finalized rows past retention
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
@@ -36,16 +35,23 @@ function setupTest() {
 
 let fetchSpy: ReturnType<typeof vi.fn>;
 let originalFetch: typeof globalThis.fetch;
+let originalApiKey: string | undefined;
 
 beforeEach(() => {
   originalFetch = globalThis.fetch;
   fetchSpy = vi.fn();
   // @ts-expect-error -- replace global fetch for the duration of the test
   globalThis.fetch = fetchSpy;
+  // performSend reads the API key from the deployment env, not from config.
+  originalApiKey = process.env.AGENTMAIL_API_KEY;
+  process.env.AGENTMAIL_API_KEY = "test-key";
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  if (originalApiKey === undefined) delete process.env.AGENTMAIL_API_KEY;
+  else process.env.AGENTMAIL_API_KEY = originalApiKey;
   vi.useRealTimers();
 });
 
@@ -123,7 +129,7 @@ describe("enqueueSend", () => {
     const status = await t.query(api.lib.getOutboundStatus, { outboundId: id });
     expect(status?.status).toBe("failed");
     // workpool should have called fetch retryAttempts times before giving up
-    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(fetchSpy.mock.calls.length).toBe(2);
   });
 
   it("constructs the correct path for reply / reply_all / forward", async () => {
@@ -318,5 +324,53 @@ describe("listInboundMessages", () => {
     expect(messages).toHaveLength(3);
     expect(messages[0].messageId).toBe("msg_0");
     expect(messages[2].messageId).toBe("msg_2");
+  });
+});
+
+describe("cleanupFinalizedOutbound", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const send = (t: ReturnType<typeof setupTest>) =>
+    t.mutation(api.lib.enqueueSend, {
+      config,
+      inboxId: "inb_1",
+      kind: "send",
+      payload: { to: "x@example.com", subject: "hi", text: "hello" },
+    });
+
+  it("deletes finalized rows past retention and keeps fresh or unfinished ones", async () => {
+    const t = setupTest();
+    // A Response body can be read once; each send needs its own.
+    fetchSpy.mockImplementation(() =>
+      jsonResponse({ message_id: "msg_1", thread_id: "thr_1" }),
+    );
+
+    const stale = await send(t);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.setSystemTime(Date.now() + 8 * DAY);
+    const fresh = await send(t);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const pending = await send(t);
+
+    await t.mutation(api.lib.cleanupFinalizedOutbound, {});
+
+    expect(await t.query(api.lib.getOutboundStatus, { outboundId: stale })).toBeNull();
+    expect((await t.query(api.lib.getOutboundStatus, { outboundId: fresh }))?.status).toBe("sent");
+    expect((await t.query(api.lib.getOutboundStatus, { outboundId: pending }))?.status).toBe("pending");
+  });
+
+  it("honours a shorter olderThan", async () => {
+    const t = setupTest();
+    // A Response body can be read once; each send needs its own.
+    fetchSpy.mockImplementation(() =>
+      jsonResponse({ message_id: "msg_1", thread_id: "thr_1" }),
+    );
+
+    const id = await send(t);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.setSystemTime(Date.now() + DAY);
+
+    await t.mutation(api.lib.cleanupFinalizedOutbound, { olderThan: DAY / 2 });
+
+    expect(await t.query(api.lib.getOutboundStatus, { outboundId: id })).toBeNull();
   });
 });

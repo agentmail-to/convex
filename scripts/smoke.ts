@@ -75,7 +75,6 @@ async function main() {
     // 3. send a message
     const sendOk = step("send message");
     const send = (await agentmailFetch(
-      config,
       `/inboxes/${inbox.inbox_id}/messages/send`,
       {
         method: "POST",
@@ -91,7 +90,6 @@ async function main() {
     // 4. fetch the message to confirm it was stored
     const getOk = step("get message");
     const fetched = (await agentmailFetch(
-      config,
       `/inboxes/${inbox.inbox_id}/messages/${send.message_id}`,
       { method: "GET" },
     )) as { message_id: string; from: string; subject?: string };

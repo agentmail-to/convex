@@ -5,7 +5,7 @@ export default defineConfig({
     environment: "edge-runtime",
     server: { deps: { inline: ["convex-test"] } },
     include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
-    exclude: ["**/*.codegen.test.ts", "node_modules/**", "dist/**"],
+    exclude: ["node_modules/**", "dist/**"],
     typecheck: { enabled: false },
   },
 });

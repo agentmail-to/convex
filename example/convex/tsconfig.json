@@ -7,7 +7,25 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
-    "lib": ["ES2021", "dom"]
+    "lib": [
+      "ES2021",
+      "dom"
+    ],
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@agentmail/convex": [
+        "../../src/client/index.ts"
+      ],
+      "@agentmail/convex/convex.config": [
+        "../../src/component/convex.config.ts"
+      ],
+      "@agentmail/convex/_generated/component.js": [
+        "../../src/component/_generated/component.d.ts"
+      ]
+    }
   },
-  "include": ["./**/*"]
+  "include": [
+    "./**/*"
+  ]
 }
