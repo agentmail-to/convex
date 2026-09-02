@@ -82,6 +82,19 @@ await agentmail.getThread(ctx, inboxId, threadId);
 await agentmail.getMessage(ctx, inboxId, messageId);
 ```
 
+## Inbox cache
+
+`createInbox` and `getInbox` store the inbox in the component's own table and `deleteInbox` removes it, so you can read inboxes from a query — and from React via `useQuery` — without an AgentMail round-trip:
+
+```ts
+export const inboxes = query({
+  args: {},
+  handler: (ctx) => agentmail.listCachedInboxes(ctx),
+});
+```
+
+`getCachedInbox(ctx, inboxId)` returns one entry, or `null` if it is not cached.
+
 ## Send mail (with labels)
 
 ```ts
@@ -179,6 +192,10 @@ The `thread` argument carries everything AgentMail knows about the thread at the
 | `onEvent`           | —                          | none (fires on every event type) |
 
 For EU residency, set `AGENTMAIL_BASE_URL=https://api.agentmail.eu/v0`.
+
+### Retention
+
+Finalized outbound rows (sent, delivered, bounced, complained, rejected, failed) are kept for 7 days, then swept by an hourly cron the component schedules itself. To sweep sooner, run `components.agentmail.lib.cleanupFinalizedOutbound` with `{ olderThan }` in milliseconds.
 
 ## License
 

@@ -41,6 +41,8 @@ const calls: Array<[string, (ctx: Ctx) => Promise<unknown>, keyof typeof lib]> =
   ["listInboxes", (ctx) => agentmail.listInboxes(ctx), "listInboxes"],
   ["getInbox", (ctx) => agentmail.getInbox(ctx, "inbox_1"), "getInboxRemote"],
   ["deleteInbox", (ctx) => agentmail.deleteInbox(ctx, "inbox_1"), "deleteInbox"],
+  ["listCachedInboxes", (ctx) => agentmail.listCachedInboxes(ctx), "listCachedInboxes"],
+  ["getCachedInbox", (ctx) => agentmail.getCachedInbox(ctx, "inbox_1"), "getCachedInbox"],
   ["sendMessage", (ctx) => agentmail.sendMessage(ctx, "inbox_1", send), "enqueueSend"],
   ["replyToMessage", (ctx) => agentmail.replyToMessage(ctx, "inbox_1", "msg_1", send), "enqueueSend"],
   ["forwardMessage", (ctx) => agentmail.forwardMessage(ctx, "inbox_1", "msg_1", send), "enqueueSend"],

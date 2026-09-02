@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as crons from "../crons.js";
 import type * as eventLogic from "../eventLogic.js";
 import type * as lib from "../lib.js";
 import type * as shared from "../shared.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  crons: typeof crons;
   eventLogic: typeof eventLogic;
   lib: typeof lib;
   shared: typeof shared;

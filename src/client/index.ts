@@ -140,6 +140,19 @@ export class AgentMail {
     });
   }
 
+  /**
+   * Read inboxes from the component's local cache, which createInbox and
+   * getInbox fill and deleteInbox clears. Works from queries and reactive
+   * clients, with no AgentMail round-trip.
+   */
+  async listCachedInboxes(ctx: RunQueryCtx) {
+    return await ctx.runQuery(this.component.lib.listCachedInboxes, {});
+  }
+
+  async getCachedInbox(ctx: RunQueryCtx, inboxId: string) {
+    return await ctx.runQuery(this.component.lib.getCachedInbox, { inboxId });
+  }
+
   // ---- Sending ---------------------------------------------------------
 
   /**
