@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@agentmail/convex": "*",
-    "convex": "^1.35.0"
+    "convex": "^1.45.0"
   },
   "devDependencies": {
     "typescript": "~5.9.0"

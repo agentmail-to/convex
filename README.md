@@ -22,17 +22,32 @@ It's the difference between "I built on Resend and rebuilt my own thread/label/d
 npm install @agentmail/convex
 ```
 
-Wire it into your Convex app:
+Requires Convex 1.39.1 or later. Wire it into your Convex app:
 
 ```ts
 // convex/convex.config.ts
 import { defineApp } from "convex/server";
+import { v } from "convex/values";
 import agentmail from "@agentmail/convex/convex.config";
 
-const app = defineApp();
-app.use(agentmail);
+const app = defineApp({
+  env: {
+    AGENTMAIL_API_KEY: v.string(),
+    AGENTMAIL_BASE_URL: v.optional(v.string()),
+  },
+});
+app.use(agentmail, {
+  env: {
+    AGENTMAIL_API_KEY: app.env.AGENTMAIL_API_KEY,
+    AGENTMAIL_BASE_URL: app.env.AGENTMAIL_BASE_URL,
+  },
+});
 export default app;
 ```
+
+Components do not inherit the app's environment variables automatically. The
+bindings above pass them without using function arguments. The webhook secret
+is read by the app-side client and does not need a component binding.
 
 Set credentials on your Convex deployment (kept out of mutation args so they don't appear in function logs):
 

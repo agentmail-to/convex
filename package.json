@@ -23,6 +23,7 @@
     "predev": "convex init && npm run build:codegen",
     "clean": "rm -rf dist *.tsbuildinfo",
     "build": "tsc --project ./tsconfig.build.json && node ./scripts/copy-generated-dts.mjs",
+    "prepare": "npm run build",
     "build:codegen": "npx convex codegen --component-dir ./src/component && npm run build",
     "build:clean": "rm -rf dist *.tsbuildinfo && npm run build:codegen",
     "typecheck": "tsc --noEmit && tsc -p example/convex",
@@ -67,14 +68,14 @@
     }
   },
   "peerDependencies": {
-    "convex": "^1.24.8",
+    "convex": "^1.39.1",
     "convex-helpers": "^0.1.106"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^24.0.0",
     "chokidar-cli": "^3.0.0",
-    "convex": "^1.35.0",
+    "convex": "^1.45.0",
     "convex-helpers": "^0.1.106",
     "convex-test": "^0.0.51",
     "tsx": "^4.21.0",

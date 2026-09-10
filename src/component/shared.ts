@@ -76,7 +76,7 @@ export type AgentMailEvent = Infer<typeof vEvent>;
 
 // Non-sensitive per-instance tuning params + user callback handles. API
 // credentials are deliberately *not* in here: they're read from
-// process.env on the component side so they don't appear in Convex
+// typed env on the component side so they don't appear in Convex
 // function logs (which record every mutation's args).
 export const vRuntimeConfig = v.object({
   retryAttempts: v.number(),

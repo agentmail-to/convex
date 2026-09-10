@@ -1,3 +1,5 @@
+import { env } from "./_generated/server.js";
+
 const PERMANENT_STATUSES = new Set([
   400, 401, 404, 405, 410, 413, 414, 415, 422,
 ]);
@@ -40,14 +42,14 @@ export async function agentmailFetch(
   path: string,
   opts: FetchOptions,
 ): Promise<unknown> {
-  const apiKey = process.env.AGENTMAIL_API_KEY;
+  const apiKey = env.AGENTMAIL_API_KEY;
   if (!apiKey) {
     throw new Error(
       "AGENTMAIL_API_KEY is not set on this Convex deployment. Run " +
         "`npx convex env set AGENTMAIL_API_KEY <key>`.",
     );
   }
-  const baseUrl = (process.env.AGENTMAIL_BASE_URL ?? DEFAULT_BASE_URL).replace(
+  const baseUrl = (env.AGENTMAIL_BASE_URL ?? DEFAULT_BASE_URL).replace(
     /\/$/,
     "",
   );
